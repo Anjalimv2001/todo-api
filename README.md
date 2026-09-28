@@ -1,94 +1,113 @@
-# Todo API
+# Todo API: Flask + Docker + CI/CD on AWS
 
-A simple Flask-based To-Do API built as a hands-on DevOps learning project — covering containerization, CI/CD, and cloud deployment fundamentals.
+A small Flask REST API used as a hands-on DevOps project. Every push to `main` is **tested, built into a Docker image, pushed to Docker Hub, and deployed to an AWS EC2 server automatically**, with no manual steps.
 
-## Features
+![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Hub-2496ED?logo=docker&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-EC2-FF9900?logo=amazonaws&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 
-- CRUD operations for to-do items (`GET`, `POST`, `DELETE`)
-- Health check endpoint for monitoring/uptime checks
-- Fully containerized with Docker
-- Designed as a stepping stone toward a full CI/CD pipeline (GitHub Actions → AWS → Jenkins → Kubernetes → Terraform)
+## Pipeline at a glance
 
-## Tech Stack
-
-- **Language/Framework:** Python, Flask
-- **Containerization:** Docker
-- **Version Control/CI:** Git, GitHub Actions (planned)
-- **Cloud:** AWS EC2 (planned)
-- **OS/Terminal:** Windows (Git Bash / MINGW64)
-
-## Getting Started
-
-### Prerequisites
-
-- Docker Desktop installed and running
-- Git
-
-### Clone the repo
-
-```bash
-git clone https://github.com/anjalimv0169/todo-api.git
-cd todo-api
+```mermaid
+flowchart LR
+    A[git push to main] --> B[test<br/>pytest]
+    B -->|pass| C[build-and-push<br/>Docker image to Docker Hub]
+    C -->|success| D[deploy<br/>SSH to EC2, pull image, restart container]
+    B -->|fail| X[Pipeline stops:<br/>nothing is built or deployed]
 ```
 
-### Run with Docker
+| Stage | What it does |
+|---|---|
+| **test** | Installs dependencies and runs the Pytest suite. If any test fails, the later stages never run. |
+| **build-and-push** | Builds the Docker image and pushes it to Docker Hub as `anjalimv0169/todo-api:latest`. |
+| **deploy** | Connects to the EC2 instance over SSH, pulls the new image, removes the old container, and starts the new one. |
 
-Pull the pre-built image from Docker Hub:
+## Tech stack
+
+- **App:** Python 3.11, Flask
+- **Testing:** Pytest
+- **Containers:** Docker (slim Python base image, `.dockerignore`, layer-cached dependency install)
+- **CI/CD:** GitHub Actions
+- **Registry:** Docker Hub
+- **Hosting:** AWS EC2 (Ubuntu), security group with SSH, HTTP, and app-port rules
+
+## API endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | Health check, returns `{"status": "ok"}` |
+| GET | `/todos` | List all todos |
+| POST | `/todos` | Add a todo (JSON body, e.g. `{"task": "learn docker"}`) |
+| DELETE | `/todos/<index>` | Delete a todo by its position in the list |
+
+> Todos are stored in memory, so they reset when the container restarts. The goal of this project is the delivery pipeline, not the data layer.
+
+## Run it locally
+
+**With Docker (quickest):**
 
 ```bash
 docker pull anjalimv0169/todo-api
-docker run -p 5000:5000 anjalimv0169/todo-api
-```
-
-Or build it locally:
-
-```bash
-docker build -t todo-api .
-docker run -p 5000:5000 todo-api
-```
-
-The API will be available at `http://localhost:5000`.
-
-## API Usage
-
-### Health check
-
-```bash
+docker run -d -p 5000:5000 --name todo-api anjalimv0169/todo-api
 curl http://localhost:5000/health
 ```
 
-### Get all todos
+**Without Docker:**
 
 ```bash
-curl http://localhost:5000/todos
+python -m venv venv
+source venv/bin/activate        # Windows Git Bash: source venv/Scripts/activate
+pip install -r requirements.txt
+python app.py
 ```
 
-### Add a todo
+**Run the tests:**
 
 ```bash
-curl -X POST http://localhost:5000/todos \
-  -H "Content-Type: application/json" \
-  -d '{"task": "Learn Docker"}'
+pytest
 ```
 
-### Delete a todo
+## Project structure
 
-```bash
-curl -X DELETE http://localhost:5000/todos/1
+```
+todo-api/
+├── app.py                          # Flask application
+├── test_app.py                     # Pytest tests
+├── requirements.txt                # Python dependencies
+├── Dockerfile                      # Container image definition
+├── .dockerignore                   # Files excluded from the image
+└── .github/workflows/
+    └── docker-build.yml            # test -> build-and-push -> deploy pipeline
 ```
 
-## Project Roadmap
+## Setting up the pipeline yourself
 
-This project is being built incrementally as a DevOps practice track:
+Add these under **Settings → Secrets and variables → Actions**:
 
-1. ✅ Build Flask API with basic CRUD endpoints
-2. ✅ Containerize with Docker, push image to Docker Hub
-3. ⬜ Set up CI pipeline with GitHub Actions
-4. ⬜ Deploy to AWS EC2
-5. ⬜ Add Jenkins pipeline
-6. ⬜ Explore Kubernetes basics
-7. ⬜ Provision infrastructure with Terraform
+| Secret | Purpose |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub access token (not your password) |
+| `EC2_HOST` | Public IP or DNS of the EC2 instance |
+| `EC2_SSH_KEY` | Full contents of the EC2 `.pem` private key |
 
-## License
+The EC2 instance needs Docker installed and its security group must allow SSH (22) and the app port (5000).
 
-MIT
+## What I learned
+
+- Making the deploy stage depend on the test stage means a bad commit can never reach the server.
+- Credentials live in GitHub Secrets, never in the repository.
+- A "connection timed out" over SSH was a security-group rule locked to an old IP address, not a problem with the key or the command.
+- Merge conflicts in workflow files, and a missing `pytest` entry in `requirements.txt`, both broke the pipeline. Reading the failed job logs is what led to each fix.
+
+## Ideas for next steps
+
+- Elastic IP so the deploy target does not change when the instance restarts
+- Restrict SSH access to a fixed range and move to a non-root deployment user
+- Replace the in-memory list with a database
+- Deploy to Kubernetes and define the AWS infrastructure with Terraform
+
+---
+
+Built by **Anjali M V** as a hands-on DevOps learning project.
