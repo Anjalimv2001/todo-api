@@ -31,6 +31,8 @@ flowchart LR
 - **CI/CD:** GitHub Actions
 - **Registry:** Docker Hub
 - **Hosting:** AWS EC2 (Ubuntu), security group with SSH, HTTP, and app-port rules
+- **Orchestration:** Kubernetes (Minikube)
+- **Infrastructure as code:** Terraform
 
 ## API endpoints
 
@@ -40,6 +42,8 @@ flowchart LR
 | GET | `/todos` | List all todos |
 | POST | `/todos` | Add a todo (JSON body, e.g. `{"task": "learn docker"}`) |
 | DELETE | `/todos/<index>` | Delete a todo by its position in the list |
+GET /health
+Returns `{"status": "ok", "version": "v2"}`
 
 > Todos are stored in memory, so they reset when the container restarts. The goal of this project is the delivery pipeline, not the data layer.
 
@@ -79,6 +83,9 @@ todo-api/
 ├── .dockerignore                   # Files excluded from the image
 └── .github/workflows/
     └── docker-build.yml            # test -> build-and-push -> deploy pipeline
+├── k8s-deployment.yml              # Kubernetes Deployment (2 replicas)
+├── k8s-service.yml                 # Kubernetes NodePort Service
+├── terraform/                      # Terraform: security group + EC2
 ```
 
 ## Setting up the pipeline yourself
@@ -93,6 +100,37 @@ Add these under **Settings → Secrets and variables → Actions**:
 | `EC2_SSH_KEY` | Full contents of the EC2 `.pem` private key |
 
 The EC2 instance needs Docker installed and its security group must allow SSH (22) and the app port (5000).
+
+## Kubernetes (Minikube)
+
+Manifests: `k8s-deployment.yml` (2 replicas) and `k8s-service.yml` (NodePort service).
+
+```bash
+minikube start --driver=docker
+kubectl apply -f k8s-deployment.yml
+kubectl apply -f k8s-service.yml
+kubectl get pods
+minikube service todo-api-service --url
+```
+
+Tested on a local cluster:
+- **Self-healing:** deleted a pod and Kubernetes recreated it automatically
+- **Scaling:** `kubectl scale deployment todo-api --replicas=4`
+- **Rolling update:** rebuilt the image and ran `kubectl rollout restart deployment todo-api` with no downtime
+
+## Terraform
+
+`terraform/main.tf` defines an AWS security group (SSH, HTTP, port 5000) and a t3.micro Ubuntu EC2 instance.
+
+```bash
+cd terraform
+terraform init
+terraform plan
+terraform apply
+terraform destroy
+```
+
+Requires AWS credentials (`aws configure`) and an existing EC2 key pair named `todo-api-key`. Terraform state files are git-ignored.
 
 ## What I learned
 
