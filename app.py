@@ -20,7 +20,7 @@ def delete_todo(index):
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "version": "v2"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
