@@ -42,8 +42,7 @@ flowchart LR
 | GET | `/todos` | List all todos |
 | POST | `/todos` | Add a todo (JSON body, e.g. `{"task": "learn docker"}`) |
 | DELETE | `/todos/<index>` | Delete a todo by its position in the list |
-GET /health
-Returns `{"status": "ok", "version": "v2"}`
+| GET | `/health` | Returns `{"status": "ok", "version": "v2"}` |
 
 > Todos are stored in memory, so they reset when the container restarts. The goal of this project is the delivery pipeline, not the data layer.
 
